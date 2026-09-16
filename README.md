@@ -1,4 +1,7 @@
-# Lingua travel translator
+
+
+Git-connected deployment enabled.# Lingua travel translator
+
 
 Mobile-first travel voice translator for Japan, Shanghai, and Hong Kong.
 
