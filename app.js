@@ -7,11 +7,11 @@ const data = {
     ['A table for two, please.', '唔該，兩位。', 'M̀h gōi, léuhng wai.'], ['Could I see the menu?', '唔該，可唔可以睇吓餐牌？', 'M̀h gōi, hó m̀h hó yí tái há chāan páai?'], ['What do you recommend?', '你有咩推介？', 'Néih yáuh mē tuī gāai?'], ['Is this spicy?', '呢個辣唔辣？', 'Nī go lát m̀h lát?'], ['No MSG, please.', '唔該，唔要味精。', 'M̀h gōi, m̀h yiu meih jīng.'], ['This is so delicious!', '呢個真係好好食！', 'Nī go jān hai hóu hóu sihk!'], ['Could we have the bill?', '唔該，埋單。', 'M̀h gōi, màai dāan.'], ['Can I pay by card?', '可唔可以用信用卡？', 'Hó m̀h hó yí yuhng seun yuhng kāat?'], ['Keep the change.', '唔使找。', 'M̀h sái jáau.'], ['Thank you, goodbye.', '唔該，拜拜。', 'M̀h gōi, báai báai.'] ], family: [
     ['It is lovely to meet you.', '好開心認識你。', 'Hóu hōi sām yihng sīk néih.'], ['Thank you for having me.', '多謝你哋招呼我。', 'Dō jeh néih deih jīu fū ngóh.'], ['The food is amazing.', '啲餸真係好好食。', 'Dī sung jān hai hóu hóu sihk.'], ['How was your week?', '你呢個禮拜點呀？', 'Néih nī go láih baai dím a?'], ['I have heard so much about you.', '我聽過好多關於你嘅嘢。', 'Ngóh tēng gwo hóu dō gwaan yū néih ge yéh.'], ['Can I help with anything?', '有冇嘢我幫到手？', 'Yáuh móuh yéh ngóh bōng dóu sáu?'], ['Your home is beautiful.', '你哋屋企好靚。', 'Néih deih ūk kēi hóu léhng.'], ['I am very happy to be here.', '我好開心嚟到呢度。', 'Ngóh hóu hōi sām lèih dóu nī dou.'], ['Please teach me Cantonese.', '請教我講廣東話。', 'Chéng gāau ngóh góng Gwóng dūng wá.'], ['I hope to see you again soon.', '希望好快再見到你。', 'Hēi mohng hóu faai joi gin dóu néih.'] ] }
 };
-let current = 'Japanese', reversed = false, listening = false, recognition;
+let current = 'Japanese', reversed = false, listening = false, recognition, lastInput = '';
 const $ = s => document.querySelector(s);
 function currentList(category='dining'){ return category === 'family' ? data.Cantonese.family : data[current].phrases; }
 function updateDirection(){ $('#directionLabel').textContent=reversed ? `${current} → English` : `English → ${current}`; $('#inputLabel').textContent=reversed ? current.toUpperCase() : 'SAY SOMETHING'; $('#outputLabel').textContent=reversed ? 'ENGLISH' : current.toUpperCase(); }
-function updateLanguage(){ const d=data[current]; $('#targetName').textContent=d.city === 'Japan' ? 'Japanese' : current; $('#targetFlag').textContent=d.flag; updateDirection(); $('#phraseTitle').textContent=current==='Cantonese'?'Dining in Hong Kong':`Dining in ${d.city}`; renderPhrases(); setTranslation(...d.phrases[0]); }
+function updateLanguage(){ const d=data[current]; $('#targetName').textContent=d.city === 'Japan' ? 'Japanese' : current; $('#targetFlag').textContent=d.flag; updateDirection(); $('#phraseTitle').textContent=current==='Cantonese'?'Dining in Hong Kong':`Dining in ${d.city}`; renderPhrases(); if(lastInput) { translate(lastInput); } else { setTranslation(...d.phrases[0]); } }
 function renderPhrases(category='dining'){ const chips=$('#categoryChips'); chips.innerHTML=`<button class="chip active" data-category="dining">Dining essentials</button>${current==='Cantonese'?'<button class="chip" data-category="family">Meeting family</button>':''}`; chips.querySelectorAll('.chip').forEach(b=>b.onclick=()=>{chips.querySelectorAll('.chip').forEach(x=>x.classList.remove('active'));b.classList.add('active'); renderList(b.dataset.category)}); renderList(category); }
 function playPhrase(phrase){ reversed=false; updateDirection(); setTranslation(...phrase); speak(); }
 function renderList(category){ const list=$('#phraseList'); list.innerHTML=currentList(category).slice(0,3).map((p,i)=>`<button class="phrase" data-index="${i}" data-category="${category}" aria-label="Play ${p[0]}"><span class="phrase-number">0${i+1}</span><span class="phrase-copy"><strong>${p[0]}</strong><span>${p[1]} · ${p[2]}</span></span><span class="play-mini">▶ <b>Play</b></span></button>`).join(''); list.querySelectorAll('.phrase').forEach(b=>b.onclick=()=>playPhrase(currentList(b.dataset.category)[b.dataset.index])); }
@@ -63,6 +63,7 @@ function translate(text){
 let finalTranscript = '';
 async function translate(text, autoPlay = false){
   if(!text.trim()) return false;
+  lastInput = text;
   $('#transcript').textContent=text;
   $('#transcript').classList.remove('empty');
   $('#translation').textContent='Translating…';
