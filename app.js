@@ -88,3 +88,63 @@ async function translate(text, autoPlay = false){
 function startListening(){ const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition; if(!SpeechRecognition){ $('#micCaption').textContent='VOICE INPUT NEEDS CHROME OR SAFARI'; return; } recognition=new SpeechRecognition(); recognition.lang=reversed?data[current].code:'en-US'; recognition.interimResults=true; recognition.onresult=e=>{const t=Array.from(e.results).map(r=>r[0].transcript).join('');$('#transcript').textContent=t;$('#transcript').classList.remove('empty');if(e.results[e.results.length-1].isFinal){receivedFinalResult=true;finalTranscript=t}}; recognition.onend=()=>{const shouldPlay=releasedHold&&receivedFinalResult;stopListening();releasedHold=false;if(receivedFinalResult)translate(finalTranscript,shouldPlay);receivedFinalResult=false;finalTranscript=''}; recognition.start(); listening=true; $('#recordButton').classList.add('recording'); $('#micCaption').textContent='LISTENING… RELEASE TO TRANSLATE'; }
 holdRecordButton.onpointerdown=e=>{e.preventDefault();if(listening)return;releasedHold=false;receivedFinalResult=false;finalTranscript='';holdRecordButton.setPointerCapture?.(e.pointerId);startListening()};
 holdRecordButton.onpointerup=holdRecordButton.onpointercancel=()=>{releasedHold=true;if(listening)stopListening();else if(receivedFinalResult){receivedFinalResult=false;translate(finalTranscript,true);finalTranscript=''}};
+
+let mediaRecorder, mediaStream, recordedChunks = [];
+const stopMediaStream = () => { if (mediaStream) mediaStream.getTracks().forEach((track) => track.stop()); mediaStream = null; };
+
+async function transcribeRecording(blob, autoPlay) {
+  $('#micCaption').textContent = 'TRANSCRIBING…';
+  try {
+    const form = new FormData();
+    form.append('file', blob, 'speech.webm');
+    form.append('model_id', 'scribe_v2');
+    const response = await fetch('/api/transcribe', { method: 'POST', body: form });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Voice transcription unavailable');
+    await translate(result.text, autoPlay);
+  } catch (error) {
+    $('#translation').textContent = 'Could not hear that.';
+    $('#romanization').textContent = error.message || 'Please try again.';
+  } finally {
+    $('#micCaption').textContent = 'HOLD TO SPEAK';
+  }
+}
+
+async function startListening() {
+  if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) { $('#micCaption').textContent = 'VOICE INPUT NEEDS A MODERN BROWSER'; return; }
+  try {
+    mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : '';
+    mediaRecorder = new MediaRecorder(mediaStream, mimeType ? { mimeType } : undefined);
+    recordedChunks = [];
+    mediaRecorder.ondataavailable = (event) => { if (event.data.size) recordedChunks.push(event.data); };
+    mediaRecorder.onstop = async () => {
+      const recordingType = mediaRecorder.mimeType || 'audio/webm';
+      const blob = new Blob(recordedChunks, { type: recordingType });
+      stopMediaStream();
+      listening = false;
+      $('#recordButton').classList.remove('recording');
+      const shouldPlay = releasedHold;
+      releasedHold = false;
+      if (blob.size) await transcribeRecording(blob, shouldPlay);
+    };
+    mediaRecorder.start();
+    listening = true;
+    $('#recordButton').classList.add('recording');
+    $('#micCaption').textContent = 'LISTENING… RELEASE TO TRANSLATE';
+  } catch (error) {
+    stopMediaStream();
+    $('#micCaption').textContent = 'MICROPHONE ACCESS IS NEEDED';
+  }
+}
+
+function stopListening() {
+  if (mediaRecorder?.state === 'recording') { mediaRecorder.stop(); return; }
+  stopMediaStream();
+  listening = false;
+  $('#recordButton').classList.remove('recording');
+  $('#micCaption').textContent = 'HOLD TO SPEAK';
+}
+
+holdRecordButton.onpointerdown = (event) => { event.preventDefault(); if (listening) return; releasedHold = false; holdRecordButton.setPointerCapture?.(event.pointerId); startListening(); };
+holdRecordButton.onpointerup = holdRecordButton.onpointercancel = () => { releasedHold = true; if (listening) stopListening(); };
