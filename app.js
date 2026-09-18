@@ -36,3 +36,25 @@ let releasedHold = false;
 function startListening(){ const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition; if(!SpeechRecognition){ $('#micCaption').textContent='VOICE INPUT NEEDS CHROME OR SAFARI'; return; } recognition=new SpeechRecognition(); recognition.lang=reversed?data[current].code:'en-US'; recognition.interimResults=true; recognition.onresult=e=>{const t=Array.from(e.results).map(r=>r[0].transcript).join('');$('#transcript').textContent=t;$('#transcript').classList.remove('empty');if(e.results[e.results.length-1].isFinal){receivedFinalResult=true;translate(t)}}; recognition.onend=()=>{const shouldPlay=releasedHold&&receivedFinalResult;stopListening();releasedHold=false;receivedFinalResult=false;if(shouldPlay)speak()}; recognition.start(); listening=true; $('#recordButton').classList.add('recording'); $('#micCaption').textContent='LISTENING… RELEASE TO TRANSLATE'; }
 function stopListening(){ if(recognition)recognition.stop(); listening=false;$('#recordButton').classList.remove('recording');$('#micCaption').textContent='HOLD TO SPEAK'; }
 holdRecordButton.onpointerdown=e=>{e.preventDefault();if(listening)return;releasedHold=false;receivedFinalResult=false;holdRecordButton.setPointerCapture?.(e.pointerId);startListening()}; holdRecordButton.onpointerup=holdRecordButton.onpointercancel=()=>{releasedHold=true;if(listening)stopListening();else if(receivedFinalResult){releasedHold=false;receivedFinalResult=false;speak()}};
+
+
+function translate(text){
+  if(!text.trim()) return;
+  const detectedForeign=/[\u3040-\u30ff\u3400-\u9fff\uff00-\uffef]/.test(text);
+  if(detectedForeign!==reversed){ reversed=detectedForeign; updateDirection(); }
+  const all=[...data[current].phrases,...(data[current].family||[])];
+  const match=reversed
+    ? all.find(p=>p[1].includes(text)||p[2].toLowerCase().includes(text.toLowerCase()))
+    : all.find(p=>p[0].toLowerCase().includes(text.toLowerCase())||text.toLowerCase().includes(p[0].toLowerCase()));
+  if(match){ setTranslation(...match); return; }
+  $('#transcript').textContent=text;
+  $('#transcript').classList.remove('empty');
+  if(reversed){ $('#translation').textContent='I understand.'; $('#romanization').textContent='English translation'; return; }
+  const fallback={
+    Japanese:['了解しました。','Ryōkai shimashita.'],
+    Mandarin:['我明白了。','Wǒ míngbai le.'],
+    Cantonese:['我明白喇。','Ngóh mìhngbaahk laa.']
+  }[current];
+  $('#translation').textContent=fallback[0];
+  $('#romanization').textContent=fallback[1];
+}
