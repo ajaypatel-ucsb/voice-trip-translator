@@ -58,3 +58,32 @@ function translate(text){
   $('#translation').textContent=fallback[0];
   $('#romanization').textContent=fallback[1];
 }
+
+
+let finalTranscript = '';
+async function translate(text, autoPlay = false){
+  if(!text.trim()) return false;
+  $('#transcript').textContent=text;
+  $('#transcript').classList.remove('empty');
+  $('#translation').textContent='Translating…';
+  $('#romanization').textContent='';
+  try {
+    const response=await fetch('/api/translate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text,selectedLanguage:current})});
+    const result=await response.json();
+    if(!response.ok) throw new Error(result.error||'Translation unavailable');
+    reversed=result.direction==='to_english';
+    updateDirection();
+    $('#transcript').textContent=text;
+    $('#translation').textContent=result.translation;
+    $('#romanization').textContent=result.source_language+' → '+result.target_language;
+    if(autoPlay) await speak();
+    return true;
+  } catch(error) {
+    $('#translation').textContent='Translation unavailable.';
+    $('#romanization').textContent='Check your connection and try again.';
+    return false;
+  }
+}
+function startListening(){ const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition; if(!SpeechRecognition){ $('#micCaption').textContent='VOICE INPUT NEEDS CHROME OR SAFARI'; return; } recognition=new SpeechRecognition(); recognition.lang=reversed?data[current].code:'en-US'; recognition.interimResults=true; recognition.onresult=e=>{const t=Array.from(e.results).map(r=>r[0].transcript).join('');$('#transcript').textContent=t;$('#transcript').classList.remove('empty');if(e.results[e.results.length-1].isFinal){receivedFinalResult=true;finalTranscript=t}}; recognition.onend=()=>{const shouldPlay=releasedHold&&receivedFinalResult;stopListening();releasedHold=false;if(receivedFinalResult)translate(finalTranscript,shouldPlay);receivedFinalResult=false;finalTranscript=''}; recognition.start(); listening=true; $('#recordButton').classList.add('recording'); $('#micCaption').textContent='LISTENING… RELEASE TO TRANSLATE'; }
+holdRecordButton.onpointerdown=e=>{e.preventDefault();if(listening)return;releasedHold=false;receivedFinalResult=false;finalTranscript='';holdRecordButton.setPointerCapture?.(e.pointerId);startListening()};
+holdRecordButton.onpointerup=holdRecordButton.onpointercancel=()=>{releasedHold=true;if(listening)stopListening();else if(receivedFinalResult){receivedFinalResult=false;translate(finalTranscript,true);finalTranscript=''}};
